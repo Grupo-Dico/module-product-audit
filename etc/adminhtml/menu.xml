@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
+
+    <menu>
+
+        <add id="LeanCommerce_ProductAudit::main"
+             title="Product Audit"
+             module="LeanCommerce_ProductAudit"
+             sortOrder="90"
+             parent="Magento_Backend::content"
+             resource="LeanCommerce_ProductAudit::main"/>
+
+        <add id="LeanCommerce_ProductAudit::logs"
+             title="Product Change Log"
+             module="LeanCommerce_ProductAudit"
+             sortOrder="10"
+             parent="LeanCommerce_ProductAudit::main"
+             action="productaudit/log/index"
+             resource="LeanCommerce_ProductAudit::logs"/>
+
+    </menu>
+
+</config>

@@ -1,0 +1,24 @@
+{
+  "name": "leancommerce/module-product-audit",
+  "description": "Magento 2 module for product audit logging including admin changes, CSV imports and mass actions",
+  "type": "magento2-module",
+  "version": "1.0.0",
+  "license": ["proprietary"],
+  "autoload": {
+    "files": ["registration.php"],
+    "psr-4": {
+      "LeanCommerce\\ProductAudit\\": ""
+    }
+  },
+  "require": {
+    "php": ">=7.3 <8.5",
+    "magento/framework": "*",
+    "magento/module-catalog": "*",
+    "magento/module-catalog-import-export": "*",
+    "magento/module-import-export": "*",
+    "magento/module-backend": "*",
+    "magento/module-ui": "*"
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

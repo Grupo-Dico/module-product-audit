@@ -1,0 +1,142 @@
+<?xml version="1.0"?>
+
+<listing xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Ui:etc/ui_configuration.xsd">
+    
+    <argument name="data" xsi:type="array">
+        <item name="js_config" xsi:type="array">
+            <item name="provider" xsi:type="string">leancommerce_productaudit_log_listing.leancommerce_productaudit_log_listing_data_source</item>
+            <item name="deps" xsi:type="string">leancommerce_productaudit_log_listing.leancommerce_productaudit_log_listing_data_source</item>
+        </item>
+    </argument>
+
+    <settings>
+        <spinner>columns</spinner>
+        <deps>
+            <dep>leancommerce_productaudit_log_listing.leancommerce_productaudit_log_listing_data_source</dep>
+        </deps>
+    </settings>
+
+    <dataSource name="leancommerce_productaudit_log_listing_data_source">
+        <argument name="dataProvider" xsi:type="configurableObject">
+            <argument name="class" xsi:type="string">
+                Magento\Framework\View\Element\UiComponent\DataProvider\DataProvider
+            </argument>
+
+            <argument name="name" xsi:type="string">
+                leancommerce_productaudit_log_listing_data_source
+            </argument>
+
+            <argument name="primaryFieldName" xsi:type="string">log_id</argument>
+            <argument name="requestFieldName" xsi:type="string">log_id</argument>
+
+            <argument name="data" xsi:type="array">
+                <item name="config" xsi:type="array">
+
+                    <item name="component" xsi:type="string">Magento_Ui/js/grid/provider</item>
+                    <item name="update_url" xsi:type="url" path="mui/index/render"/>
+
+                    <item name="storageConfig" xsi:type="array">
+                        <item name="indexField" xsi:type="string">log_id</item>
+                    </item>
+
+                </item>
+            </argument>
+        </argument>
+    </dataSource>
+
+    <listingToolbar name="listing_top">
+
+        <bookmark name="bookmarks"/>
+
+        <columnsControls name="columns_controls"/>
+
+        <exportButton name="export_button">
+            <settings>
+                <selectProvider>
+                    leancommerce_productaudit_log_listing.leancommerce_productaudit_log_listing.columns.ids
+                </selectProvider>
+            </settings>
+        </exportButton>
+
+        <paging name="listing_paging"/>
+
+    </listingToolbar>
+
+    <columns name="columns">
+
+        <selectionsColumn name="ids">
+            <settings>
+                <indexField>log_id</indexField>
+            </settings>
+        </selectionsColumn>
+
+        <column name="log_id">
+            <settings>
+                <label>ID</label>
+                <filter>text</filter>
+            </settings>
+        </column>
+
+        <column name="sku">
+            <settings>
+                <label>SKU</label>
+                <filter>text</filter>
+            </settings>
+        </column>
+
+        <column name="attribute_code">
+            <settings>
+                <label>Attribute</label>
+            </settings>
+        </column>
+
+        <column name="old_value">
+            <settings>
+                <label>Old Value</label>
+            </settings>
+        </column>
+
+        <column name="new_value">
+            <settings>
+                <label>New Value</label>
+            </settings>
+        </column>
+
+        <column name="admin_user">
+            <settings>
+                <label>User</label>
+            </settings>
+        </column>
+
+        <column name="area">
+            <settings>
+                <label>Area</label>
+            </settings>
+        </column>
+
+        <column name="origin_type">
+            <settings>
+                <label>Origin Type</label>
+                <filter>text</filter>
+            </settings>
+        </column>
+
+        <column name="origin_detail">
+            <settings>
+                <label>Origin Detail</label>
+                <filter>text</filter>
+            </settings>
+        </column>
+
+        <column name="created_at">
+            <settings>
+                <label>Date</label>
+                <filter>dateRange</filter>
+                <dataType>date</dataType>
+            </settings>
+        </column>
+
+    </columns>
+
+</listing>

@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <type name="Magento\Catalog\Model\ResourceModel\Product">
+        <plugin name="leancommerce_product_audit"
+                type="LeanCommerce\ProductAudit\Plugin\ProductResourcePlugin"
+                sortOrder="10"/>
+    </type>
+
+    <type name="Magento\CatalogImportExport\Model\Import\Product">
+        <plugin name="leancommerce_product_import_snapshot"
+                type="LeanCommerce\ProductAudit\Plugin\ImportProductPlugin"
+                sortOrder="10"/>
+    </type>
+
+    <type name="Magento\Framework\View\Element\UiComponent\DataProvider\CollectionFactory">
+        <arguments>
+            <argument name="collections" xsi:type="array">
+                <item name="leancommerce_productaudit_log_listing_data_source" xsi:type="string">
+                    LeanCommerce\ProductAudit\Model\ResourceModel\ProductChangeLog\Grid\Collection
+                </item>
+            </argument>
+        </arguments>
+    </type>
+
+    <type name="Magento\Catalog\Model\Product\Action">
+        <plugin name="leancommerce_product_audit_mass_action"
+                type="LeanCommerce\ProductAudit\Plugin\ProductActionPlugin"
+                sortOrder="20"/>
+    </type>
+
+</config>
