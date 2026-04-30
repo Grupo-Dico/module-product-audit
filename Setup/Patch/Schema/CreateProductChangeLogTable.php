@@ -100,11 +100,25 @@ class CreateProductChangeLogTable implements SchemaPatchInterface
                     'Origin Detail'
                 )
                 ->addColumn(
-                    'created_at',
-                    Table::TYPE_TIMESTAMP,
+                    'store_id',
+                    Table::TYPE_INTEGER,
                     null,
-                    ['nullable' => false, 'default' => Table::TIMESTAMP_INIT],
-                    'Created At'
+                    ['unsigned' => true, 'nullable' => true],
+                    'Store View ID'
+                )
+                ->addColumn(
+                    'store_code',
+                    Table::TYPE_TEXT,
+                    64,
+                    ['nullable' => true],
+                    'Store View Code'
+                )
+                ->addColumn(
+                    'created_at',
+                    Table::TYPE_DATETIME,
+                    null,
+                    ['nullable' => false],
+                    'Created At Local Time'
                 )
                 ->addIndex(
                     $setup->getIdxName($tableName, ['product_id']),
@@ -129,6 +143,16 @@ class CreateProductChangeLogTable implements SchemaPatchInterface
                 ->addIndex(
                     $setup->getIdxName($tableName, ['origin_type']),
                     ['origin_type'],
+                    ['type' => AdapterInterface::INDEX_TYPE_INDEX]
+                )
+                ->addIndex(
+                    $setup->getIdxName($tableName, ['store_id']),
+                    ['store_id'],
+                    ['type' => AdapterInterface::INDEX_TYPE_INDEX]
+                )
+                ->addIndex(
+                    $setup->getIdxName($tableName, ['store_code']),
+                    ['store_code'],
                     ['type' => AdapterInterface::INDEX_TYPE_INDEX]
                 )
                 ->addForeignKey(

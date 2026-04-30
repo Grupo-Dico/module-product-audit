@@ -115,25 +115,26 @@
             </settings>
         </column>
 
-        <column name="origin_type">
+        <column name="store_id">
             <settings>
-                <label>Origin Type</label>
+                <label>Store View ID</label>
                 <filter>text</filter>
             </settings>
         </column>
 
-        <column name="origin_detail">
+        <column name="store_code">
             <settings>
-                <label>Origin Detail</label>
+                <label>Store View</label>
                 <filter>text</filter>
             </settings>
         </column>
 
         <column name="created_at">
             <settings>
-                <label>Date</label>
+                <label>Local Date</label>
                 <filter>dateRange</filter>
                 <dataType>date</dataType>
+                <timezone>false</timezone>
             </settings>
         </column>
 

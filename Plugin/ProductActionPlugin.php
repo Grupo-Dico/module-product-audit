@@ -88,7 +88,8 @@ class ProductActionPlugin
                         $context['origin_detail'],
                         $context['area'],
                         $context['origin_type'],
-                        $context['origin_detail']
+                        $context['origin_detail'],
+                        (int)$storeId
                     );
 
                     $this->logger->info('Mass product audit change detected', [
@@ -99,7 +100,8 @@ class ProductActionPlugin
                         'new_value' => $newValue,
                         'origin_type' => $context['origin_type'],
                         'origin_detail' => $context['origin_detail'],
-                        'area' => $context['area']
+                        'area' => $context['area'],
+                        'store_id' => (int)$storeId
                     ]);
                 }
             } catch (\Throwable $e) {

@@ -6,6 +6,7 @@ use LeanCommerce\ProductAudit\Model\ImportSnapshot;
 use LeanCommerce\ProductAudit\ResourceModel\Logger as AuditLogger;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
+use Magento\Store\Api\StoreRepositoryInterface;
 use Psr\Log\LoggerInterface;
 
 class ProductImportObserver implements ObserverInterface
@@ -26,6 +27,11 @@ class ProductImportObserver implements ObserverInterface
     private $logger;
 
     /**
+     * @var StoreRepositoryInterface
+     */
+    private $storeRepository;
+
+    /**
      * @var string[]
      */
     private $watchedAttributes = [
@@ -39,11 +45,13 @@ class ProductImportObserver implements ObserverInterface
     public function __construct(
         ImportSnapshot $importSnapshot,
         AuditLogger $auditLogger,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        StoreRepositoryInterface $storeRepository
     ) {
         $this->importSnapshot = $importSnapshot;
         $this->auditLogger = $auditLogger;
         $this->logger = $logger;
+        $this->storeRepository = $storeRepository;
     }
 
     public function execute(Observer $observer)
@@ -60,6 +68,8 @@ class ProductImportObserver implements ObserverInterface
 
             $sku = isset($row['sku']) ? (string)$row['sku'] : '';
             $productId = isset($row['entity_id']) ? (int)$row['entity_id'] : 0;
+
+            $storeData = $this->resolveImportStoreData($row);
 
             $snapshot = $this->importSnapshot->getSnapshot($productId, $sku);
             if (!$snapshot) {
@@ -91,20 +101,50 @@ class ProductImportObserver implements ObserverInterface
                         'import_csv',
                         'import_export',
                         'import_csv',
-                        'catalog_product_import'
+                        'catalog_product_import',
+                        $storeData['store_id'],
+                        $storeData['store_code']
                     );
                 } catch (\Throwable $e) {
                     $this->logger->error('Unable to persist import product audit log', [
                         'product_id' => $resolvedProductId,
                         'sku' => $resolvedSku,
                         'attribute_code' => $attributeCode,
-                        'message' => $e->getMessage()
+                        'message' => $e->getMessage(),
+                        'store_id' => $storeData['store_id'],
+                        'store_code' => $storeData['store_code']
                     ]);
                 }
             }
 
             $this->importSnapshot->deleteSnapshot($resolvedProductId, $resolvedSku);
         }
+    }
+
+
+    private function resolveImportStoreData(array $row): array
+    {
+        $storeCode = isset($row['store_view_code']) ? trim((string)$row['store_view_code']) : '';
+
+        if ($storeCode !== '') {
+            try {
+                $store = $this->storeRepository->get($storeCode);
+                return [
+                    'store_id' => (int)$store->getId(),
+                    'store_code' => (string)$store->getCode()
+                ];
+            } catch (\Throwable $e) {
+                return [
+                    'store_id' => null,
+                    'store_code' => $storeCode
+                ];
+            }
+        }
+
+        return [
+            'store_id' => 0,
+            'store_code' => 'admin'
+        ];
     }
 
     private function normalizeValue($value, string $attributeCode)

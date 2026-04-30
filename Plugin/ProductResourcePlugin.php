@@ -6,35 +6,21 @@ use LeanCommerce\ProductAudit\Model\AuditContextResolver;
 use LeanCommerce\ProductAudit\Model\ImportAuditContext;
 use LeanCommerce\ProductAudit\ResourceModel\Logger as AuditLogger;
 use Magento\Catalog\Model\ResourceModel\Product;
+use Magento\Framework\App\RequestInterface;
 use Magento\Framework\Model\AbstractModel;
 use Magento\Framework\Registry;
+use Magento\Store\Model\StoreManagerInterface;
 use Psr\Log\LoggerInterface;
 
 class ProductResourcePlugin
 {
-    /**
-     * @var AuditLogger
-     */
     private $auditLogger;
-
-    /**
-     * @var LoggerInterface
-     */
     private $logger;
-
-    /**
-     * @var AuditContextResolver
-     */
     private $auditContextResolver;
-
-    /**
-     * @var Registry
-     */
     private $registry;
+    private $storeManager;
+    private $request;
 
-    /**
-     * @var string[]
-     */
     private $watchedAttributes = [
         'price',
         'status',
@@ -47,12 +33,16 @@ class ProductResourcePlugin
         AuditLogger $auditLogger,
         LoggerInterface $logger,
         AuditContextResolver $auditContextResolver,
-        Registry $registry
+        Registry $registry,
+        StoreManagerInterface $storeManager,
+        RequestInterface $request
     ) {
         $this->auditLogger = $auditLogger;
         $this->logger = $logger;
         $this->auditContextResolver = $auditContextResolver;
         $this->registry = $registry;
+        $this->storeManager = $storeManager;
+        $this->request = $request;
     }
 
     public function beforeSave(
@@ -67,13 +57,36 @@ class ProductResourcePlugin
             return [$product];
         }
 
+        $postedProductData = $this->request->getParam('product', []);
+        $useDefault = $this->request->getParam('use_default', []);
+
+        if (!is_array($postedProductData)) {
+            $postedProductData = [];
+        }
+
+        if (!is_array($useDefault)) {
+            $useDefault = [];
+        }
+
         $context = $this->auditContextResolver->resolve();
         $sku = (string)$product->getSku();
         $productId = (int)$product->getId();
+        $storeId = $this->resolveStoreId($product);
 
         foreach ($this->watchedAttributes as $attributeCode) {
-            $oldValue = $this->normalizeValue($product->getOrigData($attributeCode), $attributeCode);
-            $newValue = $this->normalizeValue($product->getData($attributeCode), $attributeCode);
+            if ($this->shouldSkipAttribute($attributeCode, $postedProductData, $useDefault)) {
+                continue;
+            }
+
+            $oldValue = $this->normalizeValue(
+                $product->getOrigData($attributeCode),
+                $attributeCode
+            );
+
+            $newValue = $this->normalizeValue(
+                $postedProductData[$attributeCode],
+                $attributeCode
+            );
 
             if ($oldValue === $newValue) {
                 continue;
@@ -89,19 +102,9 @@ class ProductResourcePlugin
                     $context['origin_detail'],
                     $context['area'],
                     $context['origin_type'],
-                    $context['origin_detail']
+                    $context['origin_detail'],
+                    $storeId
                 );
-
-                $this->logger->info('Product audit change detected', [
-                    'product_id' => $productId,
-                    'sku' => $sku,
-                    'attribute_code' => $attributeCode,
-                    'old_value' => $oldValue,
-                    'new_value' => $newValue,
-                    'origin_type' => $context['origin_type'],
-                    'origin_detail' => $context['origin_detail'],
-                    'area' => $context['area']
-                ]);
             } catch (\Throwable $e) {
                 $this->logger->error('Unable to persist product audit log', [
                     'product_id' => $productId,
@@ -115,6 +118,47 @@ class ProductResourcePlugin
         return [$product];
     }
 
+    private function shouldSkipAttribute(
+        string $attributeCode,
+        array $postedProductData,
+        array $useDefault
+    ): bool {
+        if (!array_key_exists($attributeCode, $postedProductData)) {
+            return true;
+        }
+
+        if (array_key_exists($attributeCode, $useDefault)) {
+            $value = $useDefault[$attributeCode];
+
+            if ($value === '1' || $value === 1 || $value === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function resolveStoreId(AbstractModel $product): ?int
+    {
+        $storeId = $this->request->getParam('store');
+
+        if ($storeId !== null && $storeId !== '') {
+            return (int)$storeId;
+        }
+
+        $storeId = $product->getStoreId();
+
+        if ($storeId !== null && $storeId !== '') {
+            return (int)$storeId;
+        }
+
+        try {
+            return (int)$this->storeManager->getStore()->getId();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     private function normalizeValue($value, string $attributeCode)
     {
         if ($value === '' || $value === null) {
@@ -123,7 +167,12 @@ class ProductResourcePlugin
 
         if (in_array($attributeCode, ['price', 'special_price', 'al_pagar_precio'], true)) {
             $value = str_replace(',', '', (string)$value);
-            return is_numeric($value) ? (string)(float)$value : trim((string)$value);
+
+            if (is_numeric($value)) {
+                return number_format((float)$value, 4, '.', '');
+            }
+
+            return trim((string)$value);
         }
 
         if ($attributeCode === 'status') {
