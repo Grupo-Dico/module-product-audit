@@ -115,6 +115,20 @@
             </settings>
         </column>
 
+        <column name="origin_type">
+            <settings>
+                <label>Origin Type</label>
+                <filter>text</filter>
+            </settings>
+        </column>
+
+        <column name="origin_detail">
+            <settings>
+                <label>Origin Detail</label>
+                <filter>text</filter>
+            </settings>
+        </column>
+
         <column name="store_id">
             <settings>
                 <label>Store View ID</label>

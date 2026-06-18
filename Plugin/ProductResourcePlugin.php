@@ -74,7 +74,7 @@ class ProductResourcePlugin
         $storeId = $this->resolveStoreId($product);
 
         foreach ($this->watchedAttributes as $attributeCode) {
-            if ($this->shouldSkipAttribute($attributeCode, $postedProductData, $useDefault)) {
+            if ($this->shouldSkipAttribute($attributeCode, $postedProductData, $useDefault, $context['origin_type'], $product)) {
                 continue;
             }
 
@@ -84,7 +84,7 @@ class ProductResourcePlugin
             );
 
             $newValue = $this->normalizeValue(
-                $postedProductData[$attributeCode],
+                $this->resolveNewValue($attributeCode, $postedProductData, $product),
                 $attributeCode
             );
 
@@ -110,6 +110,8 @@ class ProductResourcePlugin
                     'product_id' => $productId,
                     'sku' => $sku,
                     'attribute_code' => $attributeCode,
+                    'origin_type' => $context['origin_type'],
+                    'origin_detail' => $context['origin_detail'],
                     'message' => $e->getMessage()
                 ]);
             }
@@ -121,12 +123,10 @@ class ProductResourcePlugin
     private function shouldSkipAttribute(
         string $attributeCode,
         array $postedProductData,
-        array $useDefault
+        array $useDefault,
+        string $originType,
+        AbstractModel $product
     ): bool {
-        if (!array_key_exists($attributeCode, $postedProductData)) {
-            return true;
-        }
-
         if (array_key_exists($attributeCode, $useDefault)) {
             $value = $useDefault[$attributeCode];
 
@@ -135,7 +135,28 @@ class ProductResourcePlugin
             }
         }
 
-        return false;
+        if (array_key_exists($attributeCode, $postedProductData)) {
+            return false;
+        }
+
+        // En Admin normalmente viene dentro de product[attribute]. Si no viene, no lo audites
+        // para evitar falsos positivos por saves parciales del formulario.
+        if ($originType === 'admin') {
+            return true;
+        }
+
+        // En REST/SOAP/CLI/cron no siempre existe request->getParam('product'), así que se toma
+        // el dato directo del modelo si realmente fue seteado/cambiado.
+        return !$product->dataHasChangedFor($attributeCode);
+    }
+
+    private function resolveNewValue(string $attributeCode, array $postedProductData, AbstractModel $product)
+    {
+        if (array_key_exists($attributeCode, $postedProductData)) {
+            return $postedProductData[$attributeCode];
+        }
+
+        return $product->getData($attributeCode);
     }
 
     private function resolveStoreId(AbstractModel $product): ?int
