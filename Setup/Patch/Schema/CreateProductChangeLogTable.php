@@ -95,9 +95,16 @@ class CreateProductChangeLogTable implements SchemaPatchInterface
                 ->addColumn(
                     'origin_detail',
                     Table::TYPE_TEXT,
-                    255,
+                    2048,
                     ['nullable' => true],
                     'Origin Detail'
+                )
+                ->addColumn(
+                    'request_payload_summary',
+                    Table::TYPE_TEXT,
+                    2048,
+                    ['nullable' => true],
+                    'Request Payload Summary'
                 )
                 ->addColumn(
                     'store_id',

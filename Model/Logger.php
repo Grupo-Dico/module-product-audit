@@ -26,7 +26,10 @@ class Logger
         ?string $adminUser,
         ?string $area,
         ?string $originType = null,
-        ?string $originDetail = null
+        ?string $originDetail = null,
+        ?int $storeId = null,
+        ?string $storeCode = null,
+        ?string $requestPayloadSummary = null
     ): void {
         $connection = $this->resourceConnection->getConnection();
         $tableName = $this->resourceConnection->getTableName('leancommerce_product_change_log');
@@ -48,6 +51,18 @@ class Logger
 
         if ($connection->tableColumnExists($tableName, 'origin_detail')) {
             $data['origin_detail'] = $originDetail;
+        }
+
+        if ($connection->tableColumnExists($tableName, 'store_id')) {
+            $data['store_id'] = $storeId;
+        }
+
+        if ($connection->tableColumnExists($tableName, 'store_code')) {
+            $data['store_code'] = $storeCode;
+        }
+
+        if ($connection->tableColumnExists($tableName, 'request_payload_summary')) {
+            $data['request_payload_summary'] = $requestPayloadSummary;
         }
 
         $connection->insert($tableName, $data);

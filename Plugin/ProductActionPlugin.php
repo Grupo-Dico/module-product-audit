@@ -79,6 +79,15 @@ class ProductActionPlugin
                         continue;
                     }
 
+                    $entry = [
+                        'attribute_code' => $attributeCode,
+                        'old_value' => $this->stringifyValue($oldValue),
+                        'new_value' => $this->stringifyValue($newValue)
+                    ];
+
+                    $originDetail = $this->buildOriginDetail($context['origin_detail'], [$entry]);
+                    $requestPayloadSummary = $this->buildRequestPayloadSummary($attrData, [$entry]);
+
                     $this->auditLogger->logChange(
                         (int)$product->getId(),
                         (string)$product->getSku(),
@@ -88,8 +97,10 @@ class ProductActionPlugin
                         $context['origin_detail'],
                         $context['area'],
                         $context['origin_type'],
-                        $context['origin_detail'],
-                        (int)$storeId
+                        $originDetail,
+                        (int)$storeId,
+                        null,
+                        $requestPayloadSummary
                     );
 
                     $this->logger->info('Mass product audit change detected', [
@@ -99,7 +110,7 @@ class ProductActionPlugin
                         'old_value' => $oldValue,
                         'new_value' => $newValue,
                         'origin_type' => $context['origin_type'],
-                        'origin_detail' => $context['origin_detail'],
+                        'origin_detail' => $originDetail,
                         'area' => $context['area'],
                         'store_id' => (int)$storeId
                     ]);
@@ -113,6 +124,82 @@ class ProductActionPlugin
         }
 
         return [$productIds, $attrData, $storeId];
+    }
+
+
+    private function buildRequestPayloadSummary(array $attrData, array $entries): string
+    {
+        $items = [];
+
+        foreach ($this->watchedAttributes as $attributeCode) {
+            if (array_key_exists($attributeCode, $attrData)) {
+                $items[] = $attributeCode . '=' . $this->summarizeValue($attrData[$attributeCode]);
+            }
+        }
+
+        if ($items) {
+            return $this->limitText('mass_action: ' . implode(', ', $items), 2048);
+        }
+
+        foreach ($entries as $entry) {
+            $items[] = sprintf(
+                '%s:%s=>%s',
+                $entry['attribute_code'],
+                $entry['old_value'] === null ? 'NULL' : $entry['old_value'],
+                $entry['new_value'] === null ? 'NULL' : $entry['new_value']
+            );
+        }
+
+        return $this->limitText('changed: ' . implode(', ', $items), 2048);
+    }
+
+    private function summarizeValue($value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+
+        if (is_array($value) || is_object($value)) {
+            $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return $encoded === false ? '[complex]' : $this->limitText($encoded, 256);
+        }
+
+        if ($value === '') {
+            return "''";
+        }
+
+        return $this->limitText((string)$value, 256);
+    }
+
+    private function limitText(string $text, int $length): string
+    {
+        if (function_exists('mb_substr')) {
+            return mb_substr($text, 0, $length);
+        }
+
+        return substr($text, 0, $length);
+    }
+
+    private function buildOriginDetail(string $baseDetail, array $entries): string
+    {
+        $changes = [];
+
+        foreach ($entries as $entry) {
+            $changes[] = sprintf(
+                '%s:%s=>%s',
+                $entry['attribute_code'],
+                $entry['old_value'] === null ? 'NULL' : $entry['old_value'],
+                $entry['new_value'] === null ? 'NULL' : $entry['new_value']
+            );
+        }
+
+        $detail = $baseDetail . ' | changed: ' . implode(', ', $changes);
+
+        if (function_exists('mb_substr')) {
+            return mb_substr($detail, 0, 2048);
+        }
+
+        return substr($detail, 0, 2048);
     }
 
     private function normalizeValue($value, string $attributeCode)

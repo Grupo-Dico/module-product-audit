@@ -78,6 +78,7 @@ class ProductImportObserver implements ObserverInterface
 
             $resolvedProductId = (int)$snapshot['product_id'];
             $resolvedSku = (string)$snapshot['sku'];
+            $entries = [];
 
             foreach ($this->watchedAttributes as $attributeCode) {
                 if (!array_key_exists($attributeCode, $row)) {
@@ -91,25 +92,46 @@ class ProductImportObserver implements ObserverInterface
                     continue;
                 }
 
+                $entries[] = [
+                    'attribute_code' => $attributeCode,
+                    'old_value' => $this->stringifyValue($oldValue),
+                    'new_value' => $this->stringifyValue($newValue)
+                ];
+            }
+
+            if (!$entries) {
+                $this->importSnapshot->deleteSnapshot($resolvedProductId, $resolvedSku);
+                continue;
+            }
+
+            $originDetail = $this->buildOriginDetail(
+                $this->buildImportBaseDetail($storeData, $row),
+                $entries
+            );
+            $requestPayloadSummary = $this->buildRequestPayloadSummary($row, $entries);
+
+            foreach ($entries as $entry) {
                 try {
                     $this->auditLogger->logChange(
                         $resolvedProductId,
                         $resolvedSku,
-                        $attributeCode,
-                        $this->stringifyValue($oldValue),
-                        $this->stringifyValue($newValue),
+                        $entry['attribute_code'],
+                        $entry['old_value'],
+                        $entry['new_value'],
                         'import_csv',
                         'import_export',
                         'import_csv',
-                        'catalog_product_import',
+                        $originDetail,
                         $storeData['store_id'],
-                        $storeData['store_code']
+                        $storeData['store_code'],
+                        $requestPayloadSummary
                     );
                 } catch (\Throwable $e) {
                     $this->logger->error('Unable to persist import product audit log', [
                         'product_id' => $resolvedProductId,
                         'sku' => $resolvedSku,
-                        'attribute_code' => $attributeCode,
+                        'attribute_code' => $entry['attribute_code'],
+                        'origin_detail' => $originDetail,
                         'message' => $e->getMessage(),
                         'store_id' => $storeData['store_id'],
                         'store_code' => $storeData['store_code']
@@ -121,6 +143,103 @@ class ProductImportObserver implements ObserverInterface
         }
     }
 
+    private function buildRequestPayloadSummary(array $row, array $entries): string
+    {
+        $items = [];
+
+        foreach ($this->watchedAttributes as $attributeCode) {
+            if (array_key_exists($attributeCode, $row)) {
+                $items[] = $attributeCode . '=' . $this->summarizeValue($row[$attributeCode]);
+            }
+        }
+
+        if (!empty($row['store_view_code'])) {
+            array_unshift($items, 'store_view_code=' . $this->summarizeValue($row['store_view_code']));
+        }
+
+        if ($items) {
+            return $this->limitText('import_row: ' . implode(', ', $items), 2048);
+        }
+
+        foreach ($entries as $entry) {
+            $items[] = sprintf(
+                '%s:%s=>%s',
+                $entry['attribute_code'],
+                $entry['old_value'] === null ? 'NULL' : $entry['old_value'],
+                $entry['new_value'] === null ? 'NULL' : $entry['new_value']
+            );
+        }
+
+        return $this->limitText('changed: ' . implode(', ', $items), 2048);
+    }
+
+    private function summarizeValue($value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+
+        if (is_array($value) || is_object($value)) {
+            $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return $encoded === false ? '[complex]' : $this->limitText($encoded, 256);
+        }
+
+        if ($value === '') {
+            return "''";
+        }
+
+        return $this->limitText((string)$value, 256);
+    }
+
+    private function limitText(string $text, int $length): string
+    {
+        if (function_exists('mb_substr')) {
+            return mb_substr($text, 0, $length);
+        }
+
+        return substr($text, 0, $length);
+    }
+
+    private function buildImportBaseDetail(array $storeData, array $row): string
+    {
+        $parts = ['catalog_product_import'];
+
+        if (!empty($storeData['store_code'])) {
+            $parts[] = 'store:' . $storeData['store_code'];
+        }
+
+        if (!empty($row['_attribute_set'])) {
+            $parts[] = 'attribute_set:' . (string)$row['_attribute_set'];
+        }
+
+        if (!empty($row['product_type'])) {
+            $parts[] = 'product_type:' . (string)$row['product_type'];
+        }
+
+        return implode(' | ', $parts);
+    }
+
+    private function buildOriginDetail(string $baseDetail, array $entries): string
+    {
+        $changes = [];
+
+        foreach ($entries as $entry) {
+            $changes[] = sprintf(
+                '%s:%s=>%s',
+                $entry['attribute_code'],
+                $entry['old_value'] === null ? 'NULL' : $entry['old_value'],
+                $entry['new_value'] === null ? 'NULL' : $entry['new_value']
+            );
+        }
+
+        $detail = $baseDetail . ' | changed: ' . implode(', ', $changes);
+
+        if (function_exists('mb_substr')) {
+            return mb_substr($detail, 0, 2048);
+        }
+
+        return substr($detail, 0, 2048);
+    }
 
     private function resolveImportStoreData(array $row): array
     {
@@ -155,7 +274,12 @@ class ProductImportObserver implements ObserverInterface
 
         if (in_array($attributeCode, ['price', 'special_price', 'al_pagar_precio'], true)) {
             $value = str_replace(',', '', (string)$value);
-            return is_numeric($value) ? (string)(float)$value : trim((string)$value);
+
+            if (is_numeric($value)) {
+                return number_format((float)$value, 4, '.', '');
+            }
+
+            return trim((string)$value);
         }
 
         if ($attributeCode === 'status') {

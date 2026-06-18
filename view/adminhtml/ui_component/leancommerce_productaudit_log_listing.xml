@@ -129,6 +129,13 @@
             </settings>
         </column>
 
+        <column name="request_payload_summary">
+            <settings>
+                <label>Request Changes</label>
+                <filter>text</filter>
+            </settings>
+        </column>
+
         <column name="store_id">
             <settings>
                 <label>Store View ID</label>
