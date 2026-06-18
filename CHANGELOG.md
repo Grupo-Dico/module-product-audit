@@ -36,3 +36,9 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 - Added `request_payload_summary` column to identify fields received from REST/SOAP API, Admin mass/action updates, and CSV import rows.
 - Enhanced origin detail to keep the actor/source and changed values together for API, Admin, and import updates.
 - Added Product Audit grid column `Request Changes`.
+
+## [1.0.5] - 2026-06-18
+
+- Fix: Keep API origin detail clean and move request payload fields to Request Changes.
+- Fix: Avoid misleading old=>new values such as NULL=>1 in Request Changes for partial REST API product payloads.
+- Fix: Preserve one audit record per API product update request.

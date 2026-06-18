@@ -113,7 +113,7 @@ class ProductResourcePlugin
             }
 
             $oldValue = $this->normalizeValue(
-                $product->getOrigData($attributeCode),
+                $this->resolveOldValue($subject, $product, $attributeCode, $storeId),
                 $attributeCode
             );
 
@@ -260,6 +260,51 @@ class ProductResourcePlugin
         // En REST/SOAP/CLI/cron no siempre existe request->getParam('product'), así que se toma
         // el dato directo del modelo si realmente fue seteado/cambiado.
         return !$product->dataHasChangedFor($attributeCode);
+    }
+
+
+    private function resolveOldValue(
+        Product $subject,
+        AbstractModel $product,
+        string $attributeCode,
+        ?int $storeId
+    ) {
+        $oldValue = $product->getOrigData($attributeCode);
+
+        if ($oldValue !== null && $oldValue !== '') {
+            return $oldValue;
+        }
+
+        $storesToCheck = [];
+
+        if ($storeId !== null) {
+            $storesToCheck[] = (int)$storeId;
+        }
+
+        $storesToCheck[] = 0;
+        $storesToCheck = array_values(array_unique($storesToCheck));
+
+        foreach ($storesToCheck as $rawStoreId) {
+            try {
+                $rawValue = $subject->getAttributeRawValue(
+                    (int)$product->getId(),
+                    $attributeCode,
+                    $rawStoreId
+                );
+            } catch (\Throwable $e) {
+                $rawValue = null;
+            }
+
+            if (is_array($rawValue)) {
+                $rawValue = $rawValue[$attributeCode] ?? null;
+            }
+
+            if ($rawValue !== false && $rawValue !== null && $rawValue !== '') {
+                return $rawValue;
+            }
+        }
+
+        return $oldValue;
     }
 
     private function resolveNewValue(
@@ -420,6 +465,44 @@ class ProductResourcePlugin
         array $payloadStockData,
         array $entries
     ): string {
+        // IMPORTANT:
+        // This column must summarize what was explicitly received in the request/import/admin form.
+        // Do NOT put old=>new comparisons here because partial API product saves can have incomplete
+        // product orig data and create misleading values such as NULL=>1.
+        if (in_array($originType, ['api_rest', 'api_soap'], true)) {
+            $items = [];
+
+            foreach ($payloadProductData as $attributeCode => $value) {
+                $items[] = $attributeCode . '=' . $this->summarizeValue($value);
+            }
+
+            foreach ($payloadStockData as $field => $value) {
+                if (!in_array((string)$field, $this->watchedStockFields, true)) {
+                    continue;
+                }
+
+                $items[] = 'stock.' . $field . '=' . $this->summarizeValue($value);
+            }
+
+            return $this->limitText('payload: ' . implode(', ', $items), 2048);
+        }
+
+        if ($originType === 'admin') {
+            $items = [];
+
+            foreach ($postedProductData as $attributeCode => $value) {
+                if (!in_array((string)$attributeCode, $this->watchedAttributes, true)) {
+                    continue;
+                }
+
+                $items[] = $attributeCode . '=' . $this->summarizeValue($value);
+            }
+
+            return $this->limitText('admin_form: ' . implode(', ', $items), 2048);
+        }
+
+        // Imports and other sources keep the real detected changes in this summary because they do not
+        // have the same partial REST payload/origData issue.
         $items = [];
 
         foreach ($entries as $entry) {
