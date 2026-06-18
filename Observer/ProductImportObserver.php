@@ -6,6 +6,7 @@ use LeanCommerce\ProductAudit\Model\ImportSnapshot;
 use LeanCommerce\ProductAudit\ResourceModel\Logger as AuditLogger;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
+use Magento\Framework\App\ResourceConnection;
 use Magento\Store\Api\StoreRepositoryInterface;
 use Psr\Log\LoggerInterface;
 
@@ -32,6 +33,11 @@ class ProductImportObserver implements ObserverInterface
     private $storeRepository;
 
     /**
+     * @var ResourceConnection
+     */
+    private $resourceConnection;
+
+    /**
      * @var string[]
      */
     private $watchedAttributes = [
@@ -46,12 +52,14 @@ class ProductImportObserver implements ObserverInterface
         ImportSnapshot $importSnapshot,
         AuditLogger $auditLogger,
         LoggerInterface $logger,
-        StoreRepositoryInterface $storeRepository
+        StoreRepositoryInterface $storeRepository,
+        ResourceConnection $resourceConnection
     ) {
         $this->importSnapshot = $importSnapshot;
         $this->auditLogger = $auditLogger;
         $this->logger = $logger;
         $this->storeRepository = $storeRepository;
+        $this->resourceConnection = $resourceConnection;
     }
 
     public function execute(Observer $observer)
@@ -85,7 +93,13 @@ class ProductImportObserver implements ObserverInterface
                     continue;
                 }
 
-                $oldValue = $this->normalizeValue($snapshot[$attributeCode] ?? null, $attributeCode);
+                $oldValue = $this->resolveCurrentOldValue(
+                    $resolvedSku,
+                    $attributeCode,
+                    $storeData['store_id'],
+                    $snapshot[$attributeCode] ?? null
+                );
+                $oldValue = $this->normalizeValue($oldValue, $attributeCode);
                 $newValue = $this->normalizeValue($row[$attributeCode] ?? null, $attributeCode);
 
                 if ($oldValue === $newValue) {
@@ -139,6 +153,56 @@ class ProductImportObserver implements ObserverInterface
 
             $this->importSnapshot->deleteSnapshot($resolvedProductId, $resolvedSku);
         }
+    }
+
+    /**
+     * Resolve the real previous value for imports.
+     *
+     * Magento import can update the same SKU/attribute more than once in the same import,
+     * or the product snapshot can contain the value from the beginning of the process.
+     * To keep the audit sequential, prefer the last value already logged for the same
+     * sku + attribute + store_id. If no previous audit exists, fall back to the import
+     * snapshot captured before Magento applied the import row.
+     */
+    private function resolveCurrentOldValue(
+        string $sku,
+        string $attributeCode,
+        ?int $storeId,
+        $snapshotValue
+    ) {
+        try {
+            $connection = $this->resourceConnection->getConnection();
+            $tableName = $this->resourceConnection->getTableName('leancommerce_product_change_log');
+
+            $select = $connection->select()
+                ->from($tableName, ['new_value'])
+                ->where('sku = ?', $sku)
+                ->where('attribute_code = ?', $attributeCode)
+                ->order('created_at DESC')
+                ->order('log_id DESC')
+                ->limit(1);
+
+            if ($storeId === null) {
+                $select->where('store_id IS NULL');
+            } else {
+                $select->where('store_id = ?', (int)$storeId);
+            }
+
+            $lastValue = $connection->fetchOne($select);
+
+            if ($lastValue !== false && $lastValue !== null && $lastValue !== '') {
+                return $lastValue;
+            }
+        } catch (\Throwable $e) {
+            $this->logger->debug('Unable to resolve last logged import value for product audit', [
+                'sku' => $sku,
+                'attribute_code' => $attributeCode,
+                'store_id' => $storeId,
+                'message' => $e->getMessage()
+            ]);
+        }
+
+        return $snapshotValue;
     }
 
     private function buildRequestPayloadSummary(array $row, array $entries): string

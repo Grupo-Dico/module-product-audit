@@ -488,17 +488,20 @@ class ProductResourcePlugin
         }
 
         if ($originType === 'admin') {
+            // Admin form sends many watched fields even when only one was changed.
+            // Show only the real detected changes to avoid noisy audit rows.
             $items = [];
 
-            foreach ($postedProductData as $attributeCode => $value) {
-                if (!in_array((string)$attributeCode, $this->watchedAttributes, true)) {
-                    continue;
-                }
-
-                $items[] = $attributeCode . '=' . $this->summarizeValue($value);
+            foreach ($entries as $entry) {
+                $items[] = sprintf(
+                    '%s:%s=>%s',
+                    $entry['attribute_code'],
+                    $entry['old_value'] === null ? 'NULL' : $entry['old_value'],
+                    $entry['new_value'] === null ? 'NULL' : $entry['new_value']
+                );
             }
 
-            return $this->limitText('admin_form: ' . implode(', ', $items), 2048);
+            return $this->limitText('changed: ' . implode(', ', $items), 2048);
         }
 
         // Imports and other sources keep the real detected changes in this summary because they do not
