@@ -4,6 +4,14 @@ All notable changes to this module will be documented in this file.
 
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
+
+## [1.0.4] - 2026-06-18
+
+- Fix: Keep `origin_detail` unchanged with only the actor/source detail.
+- Fix: Move changed field summary to the `Request Changes` grid column.
+- Fix: Aggregate REST/SOAP API product updates into a single audit record per SKU/request instead of one record per changed field.
+- Fix: Audit only fields explicitly sent in REST/SOAP API payloads to avoid false positives from partial saves.
+
 ## [1.0.0] - 2026-04-25
 
 - Fix: Date and store view
@@ -22,7 +30,7 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 - Added audit support for API stock changes such as `stock.qty` and `stock.is_in_stock`.
 - Enhanced import audit details to include changed attributes, store scope, attribute set, and product type when available.
 
-## [3] - 2026-06-18
+## [1.0.3] - 2026-06-18
 
 - Improvement: Added request payload summary for product audit records.
 - Added `request_payload_summary` column to identify fields received from REST/SOAP API, Admin mass/action updates, and CSV import rows.

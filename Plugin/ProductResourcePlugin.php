@@ -87,10 +87,16 @@ class ProductResourcePlugin
         $payloadProductData = $this->extractPayloadProductData($apiPayload);
         $payloadStockData = $this->extractPayloadStockData($apiPayload);
 
-        $attributesToAudit = array_values(array_unique(array_merge(
-            $this->watchedAttributes,
-            array_keys($payloadProductData)
-        )));
+        if (in_array($context['origin_type'], ['api_rest', 'api_soap'], true)) {
+            // For API requests, audit only the fields explicitly sent in the payload.
+            // This avoids false positives such as status:2=>NULL caused by partial API saves.
+            $attributesToAudit = array_keys($payloadProductData);
+        } else {
+            $attributesToAudit = array_values(array_unique(array_merge(
+                $this->watchedAttributes,
+                array_keys($payloadProductData)
+            )));
+        }
 
         $entries = [];
 
@@ -135,7 +141,8 @@ class ProductResourcePlugin
             return [$product];
         }
 
-        $originDetail = $this->buildOriginDetail($context['origin_detail'], $entries);
+        // Keep Origin Detail clean. The actual changes are stored in Request Changes.
+        $originDetail = $context['origin_detail'];
         $requestPayloadSummary = $this->buildRequestPayloadSummary(
             $context['origin_type'],
             $postedProductData,
@@ -143,6 +150,51 @@ class ProductResourcePlugin
             $payloadStockData,
             $entries
         );
+
+        if (in_array($context['origin_type'], ['api_rest', 'api_soap'], true)) {
+            // API updates must create one audit row per SKU/request, not one row per field.
+            $apiAuditKey = 'leancommerce_product_audit_api_logged_' . md5(
+                $sku . '|' . $context['origin_detail'] . '|' . $requestPayloadSummary
+            );
+
+            if ($this->registry->registry($apiAuditKey)) {
+                return [$product];
+            }
+
+            $this->registry->register($apiAuditKey, true);
+
+            $entry = count($entries) === 1
+                ? $entries[0]
+                : ['attribute_code' => 'api_update', 'old_value' => null, 'new_value' => null];
+
+            try {
+                $this->auditLogger->logChange(
+                    $productId,
+                    $sku,
+                    $entry['attribute_code'],
+                    $entry['old_value'],
+                    $entry['new_value'],
+                    $context['origin_detail'],
+                    $context['area'],
+                    $context['origin_type'],
+                    $originDetail,
+                    $storeId,
+                    $storeCode,
+                    $requestPayloadSummary
+                );
+            } catch (\Throwable $e) {
+                $this->logger->error('Unable to persist product audit log', [
+                    'product_id' => $productId,
+                    'sku' => $sku,
+                    'attribute_code' => $entry['attribute_code'],
+                    'origin_type' => $context['origin_type'],
+                    'origin_detail' => $originDetail,
+                    'message' => $e->getMessage()
+                ]);
+            }
+
+            return [$product];
+        }
 
         foreach ($entries as $entry) {
             try {
@@ -369,34 +421,6 @@ class ProductResourcePlugin
         array $entries
     ): string {
         $items = [];
-
-        if (in_array($originType, ['api_rest', 'api_soap'], true)) {
-            foreach ($payloadProductData as $attributeCode => $value) {
-                $items[] = $attributeCode . '=' . $this->summarizeValue($value);
-            }
-
-            foreach ($this->watchedStockFields as $field) {
-                if (array_key_exists($field, $payloadStockData)) {
-                    $items[] = 'stock.' . $field . '=' . $this->summarizeValue($payloadStockData[$field]);
-                }
-            }
-
-            if ($items) {
-                return $this->limitText('payload: ' . implode(', ', $items), 2048);
-            }
-        }
-
-        if ($originType === 'admin') {
-            foreach ($this->watchedAttributes as $attributeCode) {
-                if (array_key_exists($attributeCode, $postedProductData)) {
-                    $items[] = $attributeCode . '=' . $this->summarizeValue($postedProductData[$attributeCode]);
-                }
-            }
-
-            if ($items) {
-                return $this->limitText('admin_form: ' . implode(', ', $items), 2048);
-            }
-        }
 
         foreach ($entries as $entry) {
             $items[] = sprintf(

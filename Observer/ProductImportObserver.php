@@ -104,10 +104,8 @@ class ProductImportObserver implements ObserverInterface
                 continue;
             }
 
-            $originDetail = $this->buildOriginDetail(
-                $this->buildImportBaseDetail($storeData, $row),
-                $entries
-            );
+            // Keep Origin Detail clean. The actual changes are stored in Request Changes.
+            $originDetail = $this->buildImportBaseDetail($storeData, $row);
             $requestPayloadSummary = $this->buildRequestPayloadSummary($row, $entries);
 
             foreach ($entries as $entry) {
@@ -146,20 +144,6 @@ class ProductImportObserver implements ObserverInterface
     private function buildRequestPayloadSummary(array $row, array $entries): string
     {
         $items = [];
-
-        foreach ($this->watchedAttributes as $attributeCode) {
-            if (array_key_exists($attributeCode, $row)) {
-                $items[] = $attributeCode . '=' . $this->summarizeValue($row[$attributeCode]);
-            }
-        }
-
-        if (!empty($row['store_view_code'])) {
-            array_unshift($items, 'store_view_code=' . $this->summarizeValue($row['store_view_code']));
-        }
-
-        if ($items) {
-            return $this->limitText('import_row: ' . implode(', ', $items), 2048);
-        }
 
         foreach ($entries as $entry) {
             $items[] = sprintf(

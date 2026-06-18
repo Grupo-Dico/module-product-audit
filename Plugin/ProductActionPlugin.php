@@ -85,7 +85,8 @@ class ProductActionPlugin
                         'new_value' => $this->stringifyValue($newValue)
                     ];
 
-                    $originDetail = $this->buildOriginDetail($context['origin_detail'], [$entry]);
+                    // Keep Origin Detail clean. The actual changes are stored in Request Changes.
+                    $originDetail = $context['origin_detail'];
                     $requestPayloadSummary = $this->buildRequestPayloadSummary($attrData, [$entry]);
 
                     $this->auditLogger->logChange(
@@ -130,16 +131,6 @@ class ProductActionPlugin
     private function buildRequestPayloadSummary(array $attrData, array $entries): string
     {
         $items = [];
-
-        foreach ($this->watchedAttributes as $attributeCode) {
-            if (array_key_exists($attributeCode, $attrData)) {
-                $items[] = $attributeCode . '=' . $this->summarizeValue($attrData[$attributeCode]);
-            }
-        }
-
-        if ($items) {
-            return $this->limitText('mass_action: ' . implode(', ', $items), 2048);
-        }
 
         foreach ($entries as $entry) {
             $items[] = sprintf(
