@@ -42,7 +42,7 @@ class Logger
             'new_value'      => $newValue,
             'admin_user'     => $adminUser,
             'area'           => $area,
-            'created_at'     => date('Y-m-d H:i:s')
+            'created_at'     => (new \DateTimeImmutable('now', new \DateTimeZone('America/Mexico_City')))->format('Y-m-d H:i:s')
         ];
 
         if ($connection->tableColumnExists($tableName, 'origin_type')) {

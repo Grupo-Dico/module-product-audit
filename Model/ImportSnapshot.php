@@ -42,7 +42,7 @@ class ImportSnapshot
             'special_price' => $data['special_price'],
             'al_pagar_label' => $data['al_pagar_label'],
             'al_pagar_precio' => $data['al_pagar_precio'],
-            'created_at' => date('Y-m-d H:i:s')
+            'created_at' => (new \DateTimeImmutable('now', new \DateTimeZone('America/Mexico_City')))->format('Y-m-d H:i:s')
         ]);
     }
 
